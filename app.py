@@ -34,41 +34,46 @@ script = st.text_area("Введіть текст сценарію", height=200)
 # --- СТИЛІ СУБТИТРІВ ---
 st.markdown("### 🎨 Виберіть стиль субтитрів")
 
+# Список шаблонів субтитрів
 subtitle_styles = {
     "Класичний білий": {
-        "color": "FFFFFF", "bg_color": "000000", "font_size": 40, "font": "Arial"
+        "color": "FFFFFF", "bg_color": "000000", "font_size": 40, "font": "Arial", "image": "https://via.placeholder.com/640x360.png?text=Classic+White"
     },
     "Темний з жовтим текстом": {
-        "color": "FFD700", "bg_color": "000000", "font_size": 42, "font": "Arial-Bold"
+        "color": "FFD700", "bg_color": "000000", "font_size": 42, "font": "Arial-Bold", "image": "https://via.placeholder.com/640x360.png?text=Dark+Yellow"
     },
     "Рожевий глянець": {
-        "color": "FF69B4", "bg_color": "1A1A1A", "font_size": 38, "font": "Georgia"
+        "color": "FF69B4", "bg_color": "1A1A1A", "font_size": 38, "font": "Georgia", "image": "https://via.placeholder.com/640x360.png?text=Pink+Glossy"
     },
     "Контрастний біло-червоний": {
-        "color": "FFFFFF", "bg_color": "B22222", "font_size": 45, "font": "Impact"
+        "color": "FFFFFF", "bg_color": "B22222", "font_size": 45, "font": "Impact", "image": "https://via.placeholder.com/640x360.png?text=White+Red"
     },
     "М’який синій": {
-        "color": "ADD8E6", "bg_color": "2C3E50", "font_size": 36, "font": "Tahoma"
+        "color": "ADD8E6", "bg_color": "2C3E50", "font_size": 36, "font": "Tahoma", "image": "https://via.placeholder.com/640x360.png?text=Soft+Blue"
     },
     "Помаранчевий кінотеатр": {
-        "color": "FFA500", "bg_color": "000000", "font_size": 50, "font": "Helvetica-Bold"
+        "color": "FFA500", "bg_color": "000000", "font_size": 50, "font": "Helvetica-Bold", "image": "https://via.placeholder.com/640x360.png?text=Cinema+Orange"
     },
     "Футуристичний зелений": {
-        "color": "00FF7F", "bg_color": "101010", "font_size": 42, "font": "Courier-New"
+        "color": "00FF7F", "bg_color": "101010", "font_size": 42, "font": "Courier-New", "image": "https://via.placeholder.com/640x360.png?text=Futuristic+Green"
     },
     "Стиль Netflix": {
-        "color": "FFFFFF", "bg_color": "000000", "font_size": 48, "font": "Verdana-Bold"
+        "color": "FFFFFF", "bg_color": "000000", "font_size": 48, "font": "Verdana-Bold", "image": "https://via.placeholder.com/640x360.png?text=Netflix+Style"
     },
     "Сучасний біло-сірий": {
-        "color": "F0F0F0", "bg_color": "333333", "font_size": 40, "font": "Arial"
+        "color": "F0F0F0", "bg_color": "333333", "font_size": 40, "font": "Arial", "image": "https://via.placeholder.com/640x360.png?text=Modern+Gray"
     },
     "Журналний стиль": {
-        "color": "000000", "bg_color": "FFD700", "font_size": 46, "font": "Times-New-Roman"
+        "color": "000000", "bg_color": "FFD700", "font_size": 46, "font": "Times-New-Roman", "image": "https://via.placeholder.com/640x360.png?text=Magazine+Style"
     }
 }
 
+# Вибір шаблону
 selected_style = st.selectbox("Оберіть шаблон субтитрів:", list(subtitle_styles.keys()))
 style = subtitle_styles[selected_style]
+
+# Відображення картки зображення шаблону
+st.image(style["image"], caption=f"Приклад субтитрів: {selected_style}", use_column_width=True)
 
 # --- Кнопка генерації відео ---
 if st.button("🎥 Згенерувати відео") and script.strip() != "":
