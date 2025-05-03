@@ -6,6 +6,7 @@ import requests
 from io import BytesIO
 import os
 from PIL import Image
+import numpy as np
 import tempfile
 
 # --- Константи ---
@@ -31,12 +32,45 @@ st.subheader("📝 Введіть сценарій — отримаєте змо
 script = st.text_area("Введіть текст сценарію", height=200)
 
 # --- СТИЛІ СУБТИТРІВ ---
-st.markdown("### 🎨 Стиль субтитрів")
-subtitle_color = st.color_picker("Колір тексту", "#FFFFFF")
-bg_color = st.color_picker("Колір фону тексту", "#000000")
-font_size = st.slider("Розмір шрифту", 20, 70, 40)
+st.markdown("### 🎨 Виберіть стиль субтитрів")
 
-# --- Кнопка ---
+subtitle_styles = {
+    "Класичний білий": {
+        "color": "FFFFFF", "bg_color": "000000", "font_size": 40, "font": "Arial"
+    },
+    "Темний з жовтим текстом": {
+        "color": "FFD700", "bg_color": "000000", "font_size": 42, "font": "Arial-Bold"
+    },
+    "Рожевий глянець": {
+        "color": "FF69B4", "bg_color": "1A1A1A", "font_size": 38, "font": "Georgia"
+    },
+    "Контрастний біло-червоний": {
+        "color": "FFFFFF", "bg_color": "B22222", "font_size": 45, "font": "Impact"
+    },
+    "М’який синій": {
+        "color": "ADD8E6", "bg_color": "2C3E50", "font_size": 36, "font": "Tahoma"
+    },
+    "Помаранчевий кінотеатр": {
+        "color": "FFA500", "bg_color": "000000", "font_size": 50, "font": "Helvetica-Bold"
+    },
+    "Футуристичний зелений": {
+        "color": "00FF7F", "bg_color": "101010", "font_size": 42, "font": "Courier-New"
+    },
+    "Стиль Netflix": {
+        "color": "FFFFFF", "bg_color": "000000", "font_size": 48, "font": "Verdana-Bold"
+    },
+    "Сучасний біло-сірий": {
+        "color": "F0F0F0", "bg_color": "333333", "font_size": 40, "font": "Arial"
+    },
+    "Журналний стиль": {
+        "color": "000000", "bg_color": "FFD700", "font_size": 46, "font": "Times-New-Roman"
+    }
+}
+
+selected_style = st.selectbox("Оберіть шаблон субтитрів:", list(subtitle_styles.keys()))
+style = subtitle_styles[selected_style]
+
+# --- Кнопка генерації відео ---
 if st.button("🎥 Згенерувати відео") and script.strip() != "":
     with st.spinner("🔊 Генеруємо озвучку..."):
         from gtts import gTTS
@@ -72,9 +106,10 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
             try:
                 img_data = requests.get(img_url).content
                 img = Image.open(BytesIO(img_data)).resize((1280, 720))
+                img = np.array(img)  # Перетворюємо PIL об'єкт у numpy масив
             except Exception as e:
                 st.warning(f"Помилка при обробці зображення: {e}")
-                img = Image.new('RGB', (1280, 720), color=(73, 109, 137))
+                img = np.zeros((720, 1280, 3), dtype=np.uint8)  # Чорний фон як заглушка
 
             duration = segment.end - segment.start
             img_clip = ImageClip(img).set_duration(duration)
@@ -82,10 +117,10 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
             # --- Субтитри ---
             txt_clip = TextClip(
                 segment.text,
-                fontsize=font_size,
-                font="Arial",
-                color=subtitle_color.replace("#", ""),
-                bg_color=bg_color.replace("#", ""),
+                fontsize=style["font_size"],
+                font=style["font"],
+                color=style["color"],
+                bg_color=style["bg_color"],
                 size=(1200, None),
                 method='caption'
             ).set_position(("center", "bottom")).set_duration(duration)
