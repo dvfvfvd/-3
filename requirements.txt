@@ -3,4 +3,4 @@ moviepy
 pydub
 gtts
 requests
-pillow
+Pillow
