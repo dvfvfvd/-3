@@ -15,7 +15,7 @@ pexels_url = "https://api.pexels.com/v1/search"
 # --- СТИЛІ СУБТИТРІВ ---
 subtitle_styles = {
     "Класичний білий": {
-        "font": "Arial-Bold",
+        "font": "Arial",
         "fontsize": 48,
         "color": "white",
         "stroke_color": "black",
@@ -171,6 +171,13 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
 
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
         final_video.write_videofile(output_path, fps=24)
+
+    st.success("✅ Відео готове!")
+    st.video(output_path)
+
+else:
+    st.info("⬆️ Введіть сценарій та натисніть кнопку для генерації.")
+
 
     st.success("✅ Відео готове!")
     st.video(output_path)
