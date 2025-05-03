@@ -6,28 +6,31 @@ import requests
 from io import BytesIO
 from PIL import Image
 import tempfile
-from gtts import gTTS
-import random
+import edge_tts
+import asyncio
 
 # --- Константи ---
 PEXELS_API_KEY = st.secrets["PEXELS_API_KEY"]
 pexels_url = "https://api.pexels.com/v1/search"
-HEADERS = {"Authorization": PEXELS_API_KEY}
 
-st.set_page_config(page_title="Відеогенератор", layout="centered")
-st.title("🎬 Автоматичне відео з озвучкою та фоновими зображеннями")
+st.set_page_config(page_title="🎬 Відеогенератор", layout="centered")
+st.title("🎬 Автоматичне відео з озвученням")
 
 # --- Ввід сценарію ---
-script = st.text_area("📝 Введіть текст сценарію", height=200)
+script = st.text_area("Введіть текст сценарію", height=200)
 
-# --- Кнопка ---
+# --- Edge TTS синтез ---
+async def generate_tts(text, output_path):
+    communicate = edge_tts.Communicate(text, voice="uk-UA-OstapNeural")
+    await communicate.save(output_path)
+
+# --- Обробка кнопки ---
 if st.button("🎥 Згенерувати відео") and script.strip() != "":
-    with st.spinner("🔊 Створюємо озвучку..."):
-        tts = gTTS(script, lang="uk")
-        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-        tts.save(temp_audio.name)
+    with st.spinner("🔊 Генеруємо озвучку (EdgeTTS)..."):
+        audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3").name
+        asyncio.run(generate_tts(script, audio_path))
 
-        audio = AudioSegment.from_mp3(temp_audio.name)
+        audio = AudioSegment.from_mp3(audio_path)
         temp_wav = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
         audio.export(temp_wav.name, format="wav")
 
@@ -37,22 +40,28 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
         lines = list(segments)
 
     with st.spinner("🖼️ Підбираємо зображення..."):
+        headers = {"Authorization": PEXELS_API_KEY}
         img_clips = []
 
         for segment in lines:
-            keywords = segment.text.lower().split()
-            search_terms = random.sample(keywords, min(3, len(keywords))) if keywords else ["nature"]
-            query = " ".join(search_terms)
-
+            keywords = segment.text.split()[:3]
+            query = " ".join(keywords) if keywords else "abstract"
             params = {"query": query, "per_page": 1}
             try:
-                response = requests.get(pexels_url, headers=HEADERS, params=params, timeout=10)
+                response = requests.get(pexels_url, headers=headers, params=params, timeout=5)
                 data = response.json()
                 img_url = data["photos"][0]["src"]["landscape"]
-                img_data = requests.get(img_url, timeout=10).content
-                img = Image.open(BytesIO(img_data)).resize((1280, 720))
-            except Exception:
-                img = Image.new('RGB', (1280, 720), color=(40, 40, 40))
+            except:
+                img_url = None
+
+            try:
+                if img_url:
+                    img_data = requests.get(img_url, timeout=5).content
+                    img = Image.open(BytesIO(img_data)).resize((1280, 720))
+                else:
+                    img = Image.new('RGB', (1280, 720), color=(0, 0, 0))
+            except:
+                img = Image.new('RGB', (1280, 720), color=(0, 0, 0))
 
             duration = segment.end - segment.start
             clip = ImageClip(img).set_duration(duration)
@@ -60,13 +69,13 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
 
     with st.spinner("🎞️ Монтуємо відео..."):
         final_video = concatenate_videoclips(img_clips, method="compose")
-        final_video = final_video.set_audio(AudioFileClip(temp_audio.name))
+        final_video = final_video.set_audio(AudioFileClip(audio_path))
 
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
         final_video.write_videofile(output_path, fps=24)
 
     st.success("✅ Відео згенеровано!")
-    st.video(output_path)
+    st.video(output_path, use_container_width=True)
 
 else:
-    st.info("⬆️ Введіть текст сценарію та натисніть кнопку.")
+    st.info("⬆️ Введіть текст сценарію і натисніть кнопку.")
