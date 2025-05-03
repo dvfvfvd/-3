@@ -1,69 +1,28 @@
 import streamlit as st
-from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, TextClip, CompositeVideoClip
+from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
 from faster_whisper import WhisperModel
 from pydub import AudioSegment
 import requests
 from io import BytesIO
 from PIL import Image
-import numpy as np
 import tempfile
+from gtts import gTTS
+import random
 
 # --- Константи ---
 PEXELS_API_KEY = st.secrets["PEXELS_API_KEY"]
 pexels_url = "https://api.pexels.com/v1/search"
+HEADERS = {"Authorization": PEXELS_API_KEY}
 
-# --- СТИЛІ СУБТИТРІВ ---
-subtitle_styles = {
-    "Класичний білий": {
-        "font": "Arial",
-        "fontsize": 48,
-        "color": "white",
-        "stroke_color": "black",
-        "stroke_width": 2,
-        "image": "https://via.placeholder.com/640x100.png?text=Класичний+білий"
-    },
-    "Жовтий з тінню": {
-        "font": "Arial-Bold",
-        "fontsize": 46,
-        "color": "yellow",
-        "stroke_color": "black",
-        "stroke_width": 3,
-        "image": "https://via.placeholder.com/640x100.png?text=Жовтий+з+тінню"
-    },
-    # Додаткові стилі субтитрів...
-}
+st.set_page_config(page_title="Відеогенератор", layout="centered")
+st.title("🎬 Автоматичне відео з озвучкою та фоновими зображеннями")
 
-# --- ІНТЕРФЕЙС ---
-st.set_page_config(page_title="Автовідео зі сценарію", layout="centered")
-st.title("🎬 Автоматичне відео з озвучкою та субтитрами")
-
+# --- Ввід сценарію ---
 script = st.text_area("📝 Введіть текст сценарію", height=200)
 
-# Вибір шаблону
-selected_style = st.selectbox("🎨 Оберіть стиль субтитрів", list(subtitle_styles.keys()))
-style = subtitle_styles[selected_style]
-
-# Відображення картинки для вибраного шаблону
-st.image(style["image"], caption=f"Приклад: {selected_style}", use_container_width=True)
-
-# --- Функція для пошуку схожих зображень за текстом ---
-def search_images(query):
-    headers = {"Authorization": PEXELS_API_KEY}
-    params = {"query": query, "per_page": 5}  # Зменшено кількість для кращої продуктивності
-    response = requests.get(pexels_url, headers=headers, params=params)
-    data = response.json()
-
-    # Якщо немає результатів, використовуємо зображення-заглушку
-    if "photos" not in data or len(data["photos"]) == 0:
-        return ["https://via.placeholder.com/1280x720.png?text=No+Image"]
-    
-    # Повертаємо URL першого зображення
-    return [photo["src"]["landscape"] for photo in data["photos"]]
-
-# --- Кнопка генерації відео ---
+# --- Кнопка ---
 if st.button("🎥 Згенерувати відео") and script.strip() != "":
-    with st.spinner("🔊 Генеруємо озвучку..."):
-        from gtts import gTTS
+    with st.spinner("🔊 Створюємо озвучку..."):
         tts = gTTS(script, lang="uk")
         temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
         tts.save(temp_audio.name)
@@ -81,36 +40,23 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
         img_clips = []
 
         for segment in lines:
-            # Пошук схожих зображень за першим словом в сегменті
-            query = segment.text.split()[0] if segment.text else "nature"
-            img_urls = search_images(query)
+            keywords = segment.text.lower().split()
+            search_terms = random.sample(keywords, min(3, len(keywords))) if keywords else ["nature"]
+            query = " ".join(search_terms)
 
-            for img_url in img_urls:
-                try:
-                    img_data = requests.get(img_url).content
-                    img = Image.open(BytesIO(img_data)).resize((1280, 720))
-                    img = np.array(img)  # Перетворюємо PIL об'єкт у numpy масив
-                except Exception as e:
-                    st.warning(f"Помилка при обробці зображення: {e}")
-                    img = np.zeros((720, 1280, 3), dtype=np.uint8)  # Чорний фон як заглушка
+            params = {"query": query, "per_page": 1}
+            try:
+                response = requests.get(pexels_url, headers=HEADERS, params=params, timeout=10)
+                data = response.json()
+                img_url = data["photos"][0]["src"]["landscape"]
+                img_data = requests.get(img_url, timeout=10).content
+                img = Image.open(BytesIO(img_data)).resize((1280, 720))
+            except Exception:
+                img = Image.new('RGB', (1280, 720), color=(40, 40, 40))
 
-                duration = segment.end - segment.start
-                img_clip = ImageClip(img).set_duration(duration)
-
-                # Створення субтитрів
-                txt_clip = TextClip(
-                    segment.text,
-                    fontsize=style["fontsize"],
-                    font=style["font"],
-                    color=style["color"],
-                    stroke_color=style["stroke_color"],
-                    stroke_width=style["stroke_width"],
-                    method='caption',
-                    size=(1200, None),
-                ).set_duration(duration).set_position(("center", "bottom"))
-
-                final_clip = CompositeVideoClip([img_clip, txt_clip]) if txt_clip else img_clip
-                img_clips.append(final_clip)
+            duration = segment.end - segment.start
+            clip = ImageClip(img).set_duration(duration)
+            img_clips.append(clip)
 
     with st.spinner("🎞️ Монтуємо відео..."):
         final_video = concatenate_videoclips(img_clips, method="compose")
@@ -119,8 +65,8 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
         output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
         final_video.write_videofile(output_path, fps=24)
 
-    st.success("✅ Відео готове!")
+    st.success("✅ Відео згенеровано!")
     st.video(output_path)
 
 else:
-    st.info("⬆️ Введіть сценарій та натисніть кнопку для генерації.")
+    st.info("⬆️ Введіть текст сценарію та натисніть кнопку.")
