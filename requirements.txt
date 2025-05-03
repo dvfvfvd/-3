@@ -6,3 +6,4 @@ pydub
 gtts
 requests
 Pillow
+faster-whisper
