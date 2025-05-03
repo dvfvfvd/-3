@@ -5,10 +5,10 @@ from pydub import AudioSegment
 import requests
 from io import BytesIO
 from PIL import Image
+import numpy as np
 import tempfile
-import os
 
-# Налаштування API
+# --- Константи ---
 PEXELS_API_KEY = st.secrets["PEXELS_API_KEY"]
 pexels_url = "https://api.pexels.com/v1/search"
 
@@ -20,7 +20,7 @@ subtitle_styles = {
         "color": "white",
         "stroke_color": "black",
         "stroke_width": 2,
-        "image": "https://via.placeholder.com/400x100.png?text=Класичний+білий"
+        "image": "https://via.placeholder.com/640x100.png?text=Класичний+білий"
     },
     "Жовтий з тінню": {
         "font": "Arial-Bold",
@@ -28,7 +28,7 @@ subtitle_styles = {
         "color": "yellow",
         "stroke_color": "black",
         "stroke_width": 3,
-        "image": "https://via.placeholder.com/400x100.png?text=Жовтий+з+тінню"
+        "image": "https://via.placeholder.com/640x100.png?text=Жовтий+з+тінню"
     },
     "Червоний жирний": {
         "font": "Arial-Bold",
@@ -36,7 +36,7 @@ subtitle_styles = {
         "color": "red",
         "stroke_color": "black",
         "stroke_width": 2,
-        "image": "https://via.placeholder.com/400x100.png?text=Червоний+жирний"
+        "image": "https://via.placeholder.com/640x100.png?text=Червоний+жирний"
     },
     "Зелений тонкий": {
         "font": "Arial",
@@ -44,7 +44,7 @@ subtitle_styles = {
         "color": "green",
         "stroke_color": "black",
         "stroke_width": 1,
-        "image": "https://via.placeholder.com/400x100.png?text=Зелений+тонкий"
+        "image": "https://via.placeholder.com/640x100.png?text=Зелений+тонкий"
     },
     "Помаранчевий без тіні": {
         "font": "Arial-Bold",
@@ -52,7 +52,7 @@ subtitle_styles = {
         "color": "orange",
         "stroke_color": None,
         "stroke_width": 0,
-        "image": "https://via.placeholder.com/400x100.png?text=Помаранчевий+простий"
+        "image": "https://via.placeholder.com/640x100.png?text=Помаранчевий+простий"
     },
     "Блакитний глянець": {
         "font": "Arial-Bold",
@@ -60,7 +60,7 @@ subtitle_styles = {
         "color": "cyan",
         "stroke_color": "blue",
         "stroke_width": 2,
-        "image": "https://via.placeholder.com/400x100.png?text=Блакитний+глянець"
+        "image": "https://via.placeholder.com/640x100.png?text=Блакитний+глянець"
     },
     "Чорно-білий контраст": {
         "font": "Arial-Bold",
@@ -68,7 +68,7 @@ subtitle_styles = {
         "color": "white",
         "stroke_color": "black",
         "stroke_width": 4,
-        "image": "https://via.placeholder.com/400x100.png?text=Контраст+ч/б"
+        "image": "https://via.placeholder.com/640x100.png?text=Контраст+ч/б"
     },
     "Фіолетовий стилізований": {
         "font": "Arial-Bold",
@@ -76,7 +76,7 @@ subtitle_styles = {
         "color": "purple",
         "stroke_color": "black",
         "stroke_width": 2,
-        "image": "https://via.placeholder.com/400x100.png?text=Фіолетовий+стиль"
+        "image": "https://via.placeholder.com/640x100.png?text=Фіолетовий+стиль"
     },
     "Сірий мінімал": {
         "font": "Arial",
@@ -84,7 +84,7 @@ subtitle_styles = {
         "color": "gray",
         "stroke_color": None,
         "stroke_width": 0,
-        "image": "https://via.placeholder.com/400x100.png?text=Сірий+мінімал"
+        "image": "https://via.placeholder.com/640x100.png?text=Сірий+мінімал"
     },
     "Яскраво-рожевий": {
         "font": "Arial-Bold",
@@ -92,7 +92,7 @@ subtitle_styles = {
         "color": "deeppink",
         "stroke_color": "black",
         "stroke_width": 2,
-        "image": "https://via.placeholder.com/400x100.png?text=Рожевий+ефект"
+        "image": "https://via.placeholder.com/640x100.png?text=Рожевий+ефект"
     },
 }
 
@@ -102,9 +102,14 @@ st.title("🎬 Автоматичне відео з озвучкою та суб
 
 script = st.text_area("📝 Введіть текст сценарію", height=200)
 
+# Вибір шаблону
 selected_style = st.selectbox("🎨 Оберіть стиль субтитрів", list(subtitle_styles.keys()))
-st.image(subtitle_styles[selected_style]["image"], caption=f"Приклад: {selected_style}", use_container_width=True)
+style = subtitle_styles[selected_style]
 
+# Відображення картинки для вибраного шаблону
+st.image(style["image"], caption=f"Приклад: {selected_style}", use_container_width=True)
+
+# --- Кнопка генерації відео ---
 if st.button("🎥 Згенерувати відео") and script.strip() != "":
     with st.spinner("🔊 Генеруємо озвучку..."):
         from gtts import gTTS
@@ -142,7 +147,6 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
             img_clip = ImageClip(img).set_duration(duration)
 
             # Створення субтитрів
-            style = subtitle_styles[selected_style]
             try:
                 txt_clip = TextClip(
                     segment.text,
@@ -173,4 +177,3 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
 
 else:
     st.info("⬆️ Введіть сценарій та натисніть кнопку для генерації.")
-
