@@ -45,13 +45,20 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
             params = {"query": query, "per_page": 1}
             response = requests.get(pexels_url, headers=headers, params=params)
             data = response.json()
+
             try:
                 img_url = data["photos"][0]["src"]["landscape"]
-            except:
-                img_url = "https://via.placeholder.com/1280x720.png?text=No+Image"
+            except Exception as e:
+                st.warning(f"Помилка при завантаженні зображення: {e}")
+                img_url = "https://via.placeholder.com/1280x720.png?text=No+Image"  # Заглушка
 
-            img_data = requests.get(img_url).content
-            img = Image.open(BytesIO(img_data)).resize((1280, 720))
+            try:
+                img_data = requests.get(img_url).content
+                img = Image.open(BytesIO(img_data)).resize((1280, 720))
+            except Exception as e:
+                st.warning(f"Помилка при завантаженні зображення: {e}")
+                img = Image.new('RGB', (1280, 720), color = (73, 109, 137))  # Проста заглушка
+
             duration = segment.end - segment.start
             clip = ImageClip(img).set_duration(duration)
             img_clips.append(clip)
