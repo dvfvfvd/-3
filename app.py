@@ -1,67 +1,69 @@
 import streamlit as st
-from moviepy.editor import *
+from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip
+from faster_whisper import WhisperModel
 from pydub import AudioSegment
-from gtts import gTTS
 import requests
-from PIL import Image
 from io import BytesIO
 import os
+from PIL import Image
 import tempfile
 
 PEXELS_API_KEY = st.secrets["PEXELS_API_KEY"]
+pexels_url = "https://api.pexels.com/v1/search"
 
-def search_image(query):
-    headers = {
-        "Authorization": PEXELS_API_KEY
-    }
-    response = requests.get(
-        f"https://api.pexels.com/v1/search?query={query}&per_page=1", headers=headers)
-    data = response.json()
-    if data['photos']:
-        return data['photos'][0]['src']['landscape']
-    return None
+st.title("🎬 Автоматичне відео з озвучкою")
 
-def generate_tts(text, path):
-    tts = gTTS(text)
-    tts.save(path)
+# Ввід сценарію
+script = st.text_area("Введіть текст сценарію", height=200)
 
-def create_video_script(script_text):
-    scenes = [line.strip() for line in script_text.split('.') if line.strip()]
-    clips = []
-    temp_dir = tempfile.mkdtemp()
+# Кнопка генерації
+if st.button("🎥 Згенерувати відео") and script.strip() != "":
+    with st.spinner("🔊 Генеруємо озвучку..."):
+        # Генеруємо тимчасовий аудіофайл
+        from gtts import gTTS
+        tts = gTTS(script, lang="uk")
+        temp_audio = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+        tts.save(temp_audio.name)
 
-    for i, line in enumerate(scenes):
-        st.write(f"🎙️ Генерується сцена {i+1}: {line}")
-        image_url = search_image(line)
-        if not image_url:
-            continue
-        img_response = requests.get(image_url)
-        img = Image.open(BytesIO(img_response.content)).resize((1280, 720))
-        img_path = os.path.join(temp_dir, f"scene_{i}.png")
-        img.save(img_path)
+        # Конвертація mp3 → wav
+        audio = AudioSegment.from_mp3(temp_audio.name)
+        temp_wav = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+        audio.export(temp_wav.name, format="wav")
 
-        audio_path = os.path.join(temp_dir, f"scene_{i}.mp3")
-        generate_tts(line, audio_path)
-        audio = AudioFileClip(audio_path)
-        duration = audio.duration
+    with st.spinner("🧠 Визначаємо таймінги..."):
+        model = WhisperModel("base", device="cpu", compute_type="int8")
+        segments, _ = model.transcribe(temp_wav.name, beam_size=5)
+        lines = list(segments)
 
-        clip = ImageClip(img_path).set_duration(duration).set_audio(audio).fadein(0.5).fadeout(0.5)
-        clips.append(clip)
+    with st.spinner("🖼️ Підбираємо зображення..."):
+        # Отримання зображень з Pexels
+        headers = {"Authorization": PEXELS_API_KEY}
+        img_clips = []
 
-    final = concatenate_videoclips(clips)
-    output_path = os.path.join(temp_dir, "final_video.mp4")
-    final.write_videofile(output_path, fps=24)
+        for segment in lines:
+            query = segment.text.split()[0] if segment.text else "nature"
+            params = {"query": query, "per_page": 1}
+            response = requests.get(pexels_url, headers=headers, params=params)
+            data = response.json()
+            try:
+                img_url = data["photos"][0]["src"]["landscape"]
+            except:
+                img_url = "https://via.placeholder.com/1280x720.png?text=No+Image"
 
-    return output_path
+            img_data = requests.get(img_url).content
+            img = Image.open(BytesIO(img_data)).resize((1280, 720))
+            duration = segment.end - segment.start
+            clip = ImageClip(img).set_duration(duration)
+            img_clips.append(clip)
 
-st.title("🎬 Автоматичне створення відео зі сценарію")
-script = st.text_area("Встав свій сценарій (розділяй репліки крапками)", height=200)
+    with st.spinner("🎞️ Монтуємо відео..."):
+        final_video = concatenate_videoclips(img_clips, method="compose")
+        final_video = final_video.set_audio(AudioFileClip(temp_audio.name))
 
-if st.button("🎥 Створити відео"):
-    if not script.strip():
-        st.warning("Будь ласка, введи сценарій.")
-    else:
-        with st.spinner("Обробка..."):
-            video_path = create_video_script(script)
-            st.success("✅ Відео створено!")
-            st.video(video_path)
+        output_path = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4").name
+        final_video.write_videofile(output_path, fps=24)
+
+    st.success("✅ Відео згенеровано!")
+    st.video(output_path)
+else:
+    st.info("⬆️ Введіть текст сценарію і натисніть кнопку.")
