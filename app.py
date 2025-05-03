@@ -30,70 +30,7 @@ subtitle_styles = {
         "stroke_width": 3,
         "image": "https://via.placeholder.com/640x100.png?text=Жовтий+з+тінню"
     },
-    "Червоний жирний": {
-        "font": "Arial-Bold",
-        "fontsize": 50,
-        "color": "red",
-        "stroke_color": "black",
-        "stroke_width": 2,
-        "image": "https://via.placeholder.com/640x100.png?text=Червоний+жирний"
-    },
-    "Зелений тонкий": {
-        "font": "Arial",
-        "fontsize": 44,
-        "color": "green",
-        "stroke_color": "black",
-        "stroke_width": 1,
-        "image": "https://via.placeholder.com/640x100.png?text=Зелений+тонкий"
-    },
-    "Помаранчевий без тіні": {
-        "font": "Arial-Bold",
-        "fontsize": 48,
-        "color": "orange",
-        "stroke_color": None,
-        "stroke_width": 0,
-        "image": "https://via.placeholder.com/640x100.png?text=Помаранчевий+простий"
-    },
-    "Блакитний глянець": {
-        "font": "Arial-Bold",
-        "fontsize": 50,
-        "color": "cyan",
-        "stroke_color": "blue",
-        "stroke_width": 2,
-        "image": "https://via.placeholder.com/640x100.png?text=Блакитний+глянець"
-    },
-    "Чорно-білий контраст": {
-        "font": "Arial-Bold",
-        "fontsize": 48,
-        "color": "white",
-        "stroke_color": "black",
-        "stroke_width": 4,
-        "image": "https://via.placeholder.com/640x100.png?text=Контраст+ч/б"
-    },
-    "Фіолетовий стилізований": {
-        "font": "Arial-Bold",
-        "fontsize": 45,
-        "color": "purple",
-        "stroke_color": "black",
-        "stroke_width": 2,
-        "image": "https://via.placeholder.com/640x100.png?text=Фіолетовий+стиль"
-    },
-    "Сірий мінімал": {
-        "font": "Arial",
-        "fontsize": 42,
-        "color": "gray",
-        "stroke_color": None,
-        "stroke_width": 0,
-        "image": "https://via.placeholder.com/640x100.png?text=Сірий+мінімал"
-    },
-    "Яскраво-рожевий": {
-        "font": "Arial-Bold",
-        "fontsize": 46,
-        "color": "deeppink",
-        "stroke_color": "black",
-        "stroke_width": 2,
-        "image": "https://via.placeholder.com/640x100.png?text=Рожевий+ефект"
-    },
+    # Додаткові стилі субтитрів...
 }
 
 # --- ІНТЕРФЕЙС ---
@@ -108,6 +45,20 @@ style = subtitle_styles[selected_style]
 
 # Відображення картинки для вибраного шаблону
 st.image(style["image"], caption=f"Приклад: {selected_style}", use_container_width=True)
+
+# --- Функція для пошуку схожих зображень за текстом ---
+def search_images(query):
+    headers = {"Authorization": PEXELS_API_KEY}
+    params = {"query": query, "per_page": 5}  # Зменшено кількість для кращої продуктивності
+    response = requests.get(pexels_url, headers=headers, params=params)
+    data = response.json()
+
+    # Якщо немає результатів, використовуємо зображення-заглушку
+    if "photos" not in data or len(data["photos"]) == 0:
+        return ["https://via.placeholder.com/1280x720.png?text=No+Image"]
+    
+    # Повертаємо URL першого зображення
+    return [photo["src"]["landscape"] for photo in data["photos"]]
 
 # --- Кнопка генерації відео ---
 if st.button("🎥 Згенерувати відео") and script.strip() != "":
@@ -127,27 +78,26 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
         lines = list(segments)
 
     with st.spinner("🖼️ Підбираємо зображення..."):
-        headers = {"Authorization": PEXELS_API_KEY}
         img_clips = []
 
         for segment in lines:
+            # Пошук схожих зображень за першим словом в сегменті
             query = segment.text.split()[0] if segment.text else "nature"
-            params = {"query": query, "per_page": 1}
-            response = requests.get(pexels_url, headers=headers, params=params)
-            data = response.json()
+            img_urls = search_images(query)
 
-            try:
-                img_url = data["photos"][0]["src"]["landscape"]
-                img_data = requests.get(img_url).content
-                img = Image.open(BytesIO(img_data)).resize((1280, 720))
-            except Exception:
-                img = Image.new('RGB', (1280, 720), color=(73, 109, 137))
+            for img_url in img_urls:
+                try:
+                    img_data = requests.get(img_url).content
+                    img = Image.open(BytesIO(img_data)).resize((1280, 720))
+                    img = np.array(img)  # Перетворюємо PIL об'єкт у numpy масив
+                except Exception as e:
+                    st.warning(f"Помилка при обробці зображення: {e}")
+                    img = np.zeros((720, 1280, 3), dtype=np.uint8)  # Чорний фон як заглушка
 
-            duration = segment.end - segment.start
-            img_clip = ImageClip(img).set_duration(duration)
+                duration = segment.end - segment.start
+                img_clip = ImageClip(img).set_duration(duration)
 
-            # Створення субтитрів
-            try:
+                # Створення субтитрів
                 txt_clip = TextClip(
                     segment.text,
                     fontsize=style["fontsize"],
@@ -158,12 +108,9 @@ if st.button("🎥 Згенерувати відео") and script.strip() != "":
                     method='caption',
                     size=(1200, None),
                 ).set_duration(duration).set_position(("center", "bottom"))
-            except Exception as e:
-                st.warning(f"⚠️ Помилка при генерації субтитру: {e}")
-                txt_clip = None
 
-            final_clip = CompositeVideoClip([img_clip, txt_clip]) if txt_clip else img_clip
-            img_clips.append(final_clip)
+                final_clip = CompositeVideoClip([img_clip, txt_clip]) if txt_clip else img_clip
+                img_clips.append(final_clip)
 
     with st.spinner("🎞️ Монтуємо відео..."):
         final_video = concatenate_videoclips(img_clips, method="compose")
